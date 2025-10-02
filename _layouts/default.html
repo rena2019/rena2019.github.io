@@ -1,4 +1,23 @@
-<nav>
-  <a href="{{ site.baseurl }}/">Home</a>
-  <a href="{{ site.baseurl }}/about/">About</a>
-</nav>
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <title>{{ page.title }} | {{ site.title }}</title>
+</head>
+<body>
+  <header>
+    <nav>
+      <a href="{{ site.baseurl }}/">Home</a>
+      <a href="{{ site.baseurl }}/pages/about/">About</a>
+    </nav>
+  </header>
+
+  <main>
+    {{ content }}
+  </main>
+
+  <footer>
+    <p>&copy; {{ site.time | date: "%Y" }} {{ site.title }}</p>
+  </footer>
+</body>
+</html>
