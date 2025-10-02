@@ -5,3 +5,4 @@ theme: minima
 # Falls Repo nicht <username>.github.io heißt:
 # baseurl: "/<repo-name>"
 # url: "https://<username>.github.io"
+excerpt_separator: "<!--more-->"
