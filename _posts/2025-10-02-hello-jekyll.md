@@ -10,7 +10,9 @@ categories: blog
 Okay, das hier ist mein erster Blogpost mit **Jekyll** – und ehrlich gesagt: es war **viel einfacher als gedacht**.  
 
 Ich hatte schon länger die Idee, etwas Eigenes aufzusetzen, ohne mich mit Datenbanken, riesigen Admin-Oberflächen oder unzähligen Plugins herumzuschlagen. Mit **GitHub Pages** und ein bisschen **Markdown** ist das Ganze super schnell eingerichtet.  
+
 <!--more-->
+
 ---
 
 ## Erste Eindrücke  
