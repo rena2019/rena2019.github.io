@@ -1,7 +1,8 @@
 title: "rena2019 bloggt"
 description: "Spielwiese von rena2019 ;-)"
 theme: minima
-excerpt_separator: "<!--more-->"
+show_excerpts: true
+excerpt_separator: <!--more-->
 
 # Falls Repo nicht <username>.github.io heißt:
 # baseurl: "/<repo-name>"
