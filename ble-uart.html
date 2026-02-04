@@ -37,7 +37,7 @@ const NUS_TX      = '6e400003-b5a3-f393-e0a9-e50e24dcca9e'; // notify
 
 const textarea = document.getElementById("console");
 const encoder = new TextEncoder();
-const decoder = new TextDecoder();
+const decoder = new TextDecoder("utf-8", { fatal: false });
 
 let rxChar = null;
 let lastLength = 0;
@@ -103,4 +103,5 @@ textarea.addEventListener("input", async () => {
 
 </body>
 </html>
+
 
