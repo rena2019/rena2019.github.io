@@ -8,11 +8,11 @@ window.myconnect = async function () {
 
   const uart = await espruinoBleUart.connect(() => console.log("XX"));
 
-  uart.write(new TextEncoder().encode("hello BLE UART\n"));
+  /*uart.write(new TextEncoder().encode("hello BLE UART\n"));
 
   uart.onData = (data) => {
     console.log(new TextDecoder().decode(data));
-  };
+  };*/
 };
 
 </script>
@@ -22,3 +22,4 @@ window.myconnect = async function () {
 </body>
 
 </html>
+
