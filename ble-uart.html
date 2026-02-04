@@ -47,7 +47,7 @@ let suppressInput = false; // verhindert Echo-Loops
 // 🔌 Connect
 document.getElementById("connect").addEventListener("click", async () => {
   const device = await navigator.bluetooth.requestDevice({
-    filters: [{ services: [NUS_SERVICE] }]
+    filters: [{ /* services: [NUS_SERVICE]*/  }]
   });
 
   const server = await device.gatt.connect();
@@ -88,3 +88,4 @@ textarea.addEventListener("input", async () => {
 
 </body>
 </html>
+
