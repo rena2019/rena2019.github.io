@@ -61,7 +61,9 @@ document.getElementById("connect").addEventListener("click", async () => {
 
     await txChar.startNotifications();
     txChar.addEventListener("characteristicvaluechanged", e => {
-      const text = decoder.decode(e.target.value);
+      // DataView → Uint8Array → Text
+      const bytes = new Uint8Array(e.target.value.buffer);
+      const text = decoder.decode(bytes, { stream: true });
 
       suppressInput = true;
       textarea.value += text;
@@ -101,3 +103,4 @@ textarea.addEventListener("input", async () => {
 
 </body>
 </html>
+
