@@ -6,7 +6,7 @@ import espruinoBleUart from 'https://cdn.skypack.dev/espruino-ble-uart';
 window.myconnect = async function () {
   console.log("CONNECT");
 
-  const uart = await espruinoBleUart.connect();
+  const uart = await espruinoBleUart.connect(() => console.log("XX"));
 
   uart.write(new TextEncoder().encode("hello BLE UART\n"));
 
@@ -14,9 +14,11 @@ window.myconnect = async function () {
     console.log(new TextDecoder().decode(data));
   };
 };
+
 </script>
 </head>
 <body>
 <a href="#" onclick="myconnect()">CONNECT</a>
 </body>
+
 </html>
