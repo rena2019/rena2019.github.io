@@ -48,7 +48,7 @@ document.getElementById("connect").addEventListener("click", async () => {
   try {
     const device = await navigator.bluetooth.requestDevice({
       filters: [
-        { namePrefix: 'mpy-uart' }
+        { namePrefix: 'mpy' }
       ],
       optionalServices: [NUS_SERVICE] // 👈 wichtig!
     });
@@ -103,5 +103,6 @@ textarea.addEventListener("input", async () => {
 
 </body>
 </html>
+
 
 
