@@ -27,6 +27,7 @@
 <body>
 
 <button id="connect">Connect BLE</button><br><br>
+<input id=devname placeholder="Device name" />
 <textarea id="console" disabled></textarea>
 
 <script type="module">
@@ -46,9 +47,10 @@ let suppressInput = false;
 /* 🔌 CONNECT — USER GESTURE SAFE */
 document.getElementById("connect").addEventListener("click", async () => {
   try {
+    prefix = document.getElementById("devname").value;
     const device = await navigator.bluetooth.requestDevice({
       filters: [
-        { namePrefix: 'mpy' }
+        { namePrefix: prefix }
       ],
       optionalServices: [NUS_SERVICE] // 👈 wichtig!
     });
