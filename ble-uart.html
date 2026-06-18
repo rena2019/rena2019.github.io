@@ -47,10 +47,11 @@ let suppressInput = false;
 /* 🔌 CONNECT — USER GESTURE SAFE */
 document.getElementById("connect").addEventListener("click", async () => {
   try {
-    prefix = document.getElementById("devname").value;
-    const device = await navigator.bluetooth.requestDevice({
+    dn = document.getElementById("devname").value;
+    console.log(`prefix: ${dn}`);
+    device = await navigator.bluetooth.requestDevice({
       filters: [
-        { namePrefix: prefix }
+        { namePrefix: dn }
       ],
       optionalServices: [NUS_SERVICE] // 👈 wichtig!
     });
