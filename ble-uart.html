@@ -27,7 +27,9 @@
 <body>
 Other tools: <a href="https://navideck.github.io/universal-ble/">https://navideck.github.io/universal-ble/</a> | <a href="https://bluetooth-tester.com/">https://bluetooth-tester.com/</a><br/>
 <button id="connect">Connect BLE</button><br/><br/>
+all devices <input id="alldevices" type="checkbox" />
 <input id="devname" placeholder="Device name" />
+<input id="services" placeholder="Services" />
 <textarea id="console" disabled></textarea>
 <div id="errlog"/>
 
@@ -48,17 +50,31 @@ let suppressInput = false;
 /* 🔌 CONNECT — USER GESTURE SAFE */
 document.getElementById("connect").addEventListener("click", async () => {
   let options = {};
-  let filters = [];
+  let filters = []; //https://developer.chrome.com/docs/capabilities/bluetooth#request
   try {
      console.log(document.getElementById("devname").value);
 	 let filterName = document.getElementById('devname').value;
 	  if (filterName) {
-		filters.push({name: filterName});
-		options.filters = filters;
-	  } else {
-		options.acceptAllDevices = true;
+		filters.push({namePrefix: filterName});
+		
 	  }
-	  options.optionalServices = [NUS_SERVICE];
+	  let alldevices = document.getElementById('alldevices').checked;
+	  
+	  let services = document.getElementById('services').value;
+	  if (services) {
+		filters.push({optionalServices: [ services ] });
+	  }
+	  if (Object.keys(filters).length == 0) {
+	     alldevices = true;
+	  }
+	  
+	  if (alldevices) {
+	     options.acceptAllDevices = true;
+	  } else {
+	    options.filters = filters;
+	  }
+	  
+	  //options.optionalServices = [NUS_SERVICE];
     device = await navigator.bluetooth.requestDevice(
 		options
 		/*{
