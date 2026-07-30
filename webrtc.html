@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8" />
+<title>WebRTC QR-Signaling Chat (Single File + QR-Scanner)</title>
+<style>
+body { font-family: Arial, sans-serif; max-width: 1100px; margin: 20px auto; }
+.grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; align-items: start; }
+.card { border: 1px solid #ccc; padding: 12px; border-radius: 8px; }
+#localQR, #remoteQR { width: 256px; height: 256px; display: block; margin: 6px 0; }
+textarea { width: 100%; height: 72px; }
+#chat { border:1px solid #ddd; height: 260px; overflow:auto; padding:6px; background:#f9f9f9; border-radius:6px; }
+#transferStatus { margin-top:8px; }
+#videoPreview { width: 320px; height: 240px; display: none; }
+</style>
+<!-- QR-Generator -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<!-- ZXing-basierte QR-Scanner-Lib (Webcam) -->
+<script src="https://unpkg.com/@zxing/library@0.18.6/umd/index.min.js"></script>
+</head>
+<body>
+<h1>WebRTC Chat mit QR-Signaling (Single File, Webcam QR)</h1>
+<div class="grid">
+<section class="card" id="section-offer">
+<h3>Offer erzeugen</h3>
+<button id="btnCreateOffer">Offer erstellen</button>
+
+<div id="localQR"></div>
+<p>Scannt von Gegenstelle: Offer-QR signalisieren.</p>
+<textarea id="offerInput" placeholder="Offer-JSON hier einfügen (optional)"></textarea>
+<button id="btnScanOffer">Offer per Kamera scannen</button>
+</section>
+
+<section class="card" id="section-answer">
+<h3>Answer erzeugen</h3>
+<button id="btnCreateAnswer">Answer erstellen</button>
+
+<div id="remoteQR"></div>
+<p>Signaling: Answer-QR generieren oder Answer-JSON einfügen.</p>
+<textarea id="answerInput" placeholder="Answer-JSON hier einfügen (optional)"></textarea>
+<button id="btnScanAnswer">Answer per Kamera scannen</button>
+</section>
+
+<section class="card" id="section-chat">
+<h3>Chat & Data Transfer</h3>
+<div id="chat"></div>
+<input type="text" id="msg" placeholder="Nachricht senden…" />
+<button id="sendBtn" disabled>Senden</button>
+<div id="transferStatus"></div>
+</section>
+</div>
+
+<video id="videoPreview" autoplay muted></video>
+
+<script>
+// WebRTC Setup
+let pc = null;
+let dc = null;
+const iceServers = [{ urls: "stun:stun.l.google.com:19302" }];
+
+const localQR = document.getElementById('localQR');
+const remoteQR = document.getElementById('remoteQR');
+const btnCreateOffer = document.getElementById('btnCreateOffer');
+const btnScanOffer = document.getElementById('btnScanOffer');
+const offerInput = document.getElementById('offerInput');
+const btnCreateAnswer = document.getElementById('btnCreateAnswer');
+const btnScanAnswer = document.getElementById('btnScanAnswer');
+const answerInput = document.getElementById('answerInput');
+const chat = document.getElementById('chat');
+const msgInput = document.getElementById('msg');
+const sendBtn = document.getElementById('sendBtn');
+const videoPreview = document.getElementById('videoPreview');
+const transferStatus = document.getElementById('transferStatus');
+
+function log(line){
+const p = document.createElement('div');
+p.textContent = line;
+chat.appendChild(p);
+chat.scrollTop = chat.scrollHeight;
+}
+
+function ensurePC(needOfferChannel) {
+if (pc) return;
+pc = new RTCPeerConnection({ iceServers });
+pc.onicecandidate = e => {
+if (e.candidate) return;
+// ICE gathering complete
+};
+pc.oniceconnectionstatechange = () => {
+if (pc.iceConnectionState === 'connected' || pc.iceConnectionState === 'completed') {
+transferStatus.textContent = 'ICE Verbindung hergestellt';
+}
+};
+pc.ondatachannel = evt => {
+dc = evt.channel;
+setupDC();
+};
+if (needOfferChannel){
+// create data channel as initiator
+dc = pc.createDataChannel("chat");
+setupDC();
+}
+}
+
+function setupDC(){
+if (!dc) return;
+dc.onopen = ()=>{ log("DataChannel geöffnet"); sendBtn.disabled = false; };
+dc.onmessage = (ev) => { log("Gegenstelle: " + ev.data); };
+// optional: handle binary data for files
+}
+
+// QR encode helper
+function renderQR(element, text){
+element.innerHTML = "";
+new QRCode(element, { text: text, width: 256, height: 256 });
+}
+
+function packJSON(obj){
+return JSON.stringify(obj);
+}
+function unpackJSON(str){
+try { return JSON.parse(str); } catch { return null; }
+}
+
+// Offer erzeugen
+btnCreateOffer.addEventListener('click', async () => {
+ensurePC(true);
+if (!pc) return;
+dc = pc.createDataChannel("chat");
+setupDC();
+const offer = await pc.createOffer();
+await pc.setLocalDescription(offer);
+const payload = { type: "offer", sdp: offer.sdp, t: offer.type };
+const s = packJSON(payload);
+offerInput.value = s;
+renderQR(localQR, s);
+log("Offer erstellt und als QR codiert.");
+});
+
+// Offer per Kamera scannen (Signaling via QR)
+btnScanOffer.addEventListener('click', async () => {
+await startCameraScan(async (decoded) => {
+const data = unpackJSON(decoded);
+if (!data || data.type !== 'offer') { log("Ungültiges Offer-Signal"); return; }
+ensurePC(false);
+await pc.setRemoteDescription(new RTCSessionDescription({ type: 'offer', sdp: data.sdp }));
+const ans = await pc.createAnswer();
+await pc.setLocalDescription(ans);
+const payload = { type: "answer", sdp: ans.sdp, t: ans.type };
+const s = packJSON(payload);
+answerInput.value = s;
+renderQR(remoteQR, s);
+log("Offer empfangen; Answer erzeugt & QR codiert.");
+});
+});
+
+// Answer erzeugen (optional)
+btnCreateAnswer.addEventListener('click', async () => {
+ensurePC(false);
+const ans = await pc.createAnswer();
+await pc.setLocalDescription(ans);
+const payload = { type: "answer", sdp: ans.sdp, t: ans.type };
+const s = packJSON(payload);
+renderQR(remoteQR, s);
+answerInput.value = s;
+log("Answer erstellt und QR codiert.");
+});
+
+// Answer per Kamera scannen
+btnScanAnswer.addEventListener('click', async () => {
+await startCameraScan(async (decoded) => {
+const data = unpackJSON(decoded);
+if (!data || data.type !== 'answer') { log("Ungültiges Answer-Signal"); return; }
+if (!pc) return;
+await pc.setRemoteDescription(new RTCSessionDescription({ type: 'answer', sdp: data.sdp }));
+log("Answer empfangen; Peer verbunden (hoffentlich).");
+});
+});
+
+// Chat senden
+sendBtn.addEventListener('click', () => {
+const text = msgInput.value;
+if (!text || !dc || dc.readyState !== 'open') return;
+dc.send(text);
+log("Ich: " + text);
+msgInput.value = "";
+});
+msgInput.addEventListener('keydown', (e)=>{ if(e.key==='Enter'){ e.preventDefault(); sendBtn.click(); } });
+
+// Live QR-Scan (Kamera) Implementation
+async function startCameraScan(onDecoded){
+const codeReader = new ZXing.BrowserMultiFormatReader();
+videoPreview.style.display = 'block';
+const videoEl = videoPreview;
+try {
+const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
+videoEl.srcObject = stream;
+return new Promise((resolve, reject) => {
+const tick = () => {
+codeReader.decodeFromVideoDevice(null, videoEl, (result, err) => {
+if (result) {
+codeReader.reset();
+stream.getTracks().forEach(t => t.stop());
+videoEl.style.display = 'none';
+onDecoded(result.text);
+resolve(result.text);
+}
+// continue scanning on errors
+}).catch(() => {});
+};
+tick();
+});
+} catch (e) {
+log("Kamerazugriff verweigert oder Fehler: " + e);
+videoPreview.style.display = 'none';
+}
+}
+
+// Initialer Hinweis
+log("Anleitung: Signaling via QR-Code aus Webcam. Nach dem Austausch von Offer/Answer kann der Chat starten.");
+</script>
+</body>
+</html>
