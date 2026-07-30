@@ -1,0 +1,417 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>WebRTC QR-Chat (Serverless)</title>
+  
+  <!-- CDNs für QR-Code-Generierung, QR-Code-Scanning und Zlib-Komprimierung -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pako/2.1.0/pako.min.js"></script>
+
+  <style>
+    :root {
+      --bg-color: #0f172a;
+      --card-bg: #1e293b;
+      --text-color: #f8fafc;
+      --accent-color: #38bdf8;
+      --accent-hover: #0284c7;
+      --success-color: #22c55e;
+      --muted-text: #94a3b8;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      background-color: var(--bg-color);
+      color: var(--text-color);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+      padding: 1rem;
+    }
+
+    .container {
+      background-color: var(--card-bg);
+      width: 100%;
+      max-width: 500px;
+      border-radius: 12px;
+      padding: 1.5rem;
+      box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+      display: flex;
+      flex-direction: column;
+      gap: 1.25rem;
+    }
+
+    h1 {
+      font-size: 1.4rem;
+      text-align: center;
+      color: var(--accent-color);
+    }
+
+    .btn {
+      background-color: var(--accent-color);
+      color: #000;
+      font-weight: bold;
+      border: none;
+      padding: 0.75rem 1rem;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: background 0.2s ease;
+      width: 100%;
+    }
+
+    .btn:hover { background-color: var(--accent-hover); color: #fff; }
+    .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    .step-box {
+      border: 1px solid #334155;
+      border-radius: 8px;
+      padding: 1rem;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 0.75rem;
+    }
+
+    .qr-container {
+      background: white;
+      padding: 10px;
+      border-radius: 8px;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+
+    video {
+      width: 100%;
+      max-height: 250px;
+      border-radius: 8px;
+      background: #000;
+      object-fit: cover;
+    }
+
+    /* Chat UI */
+    #chat-section { display: none; flex-direction: column; height: 400px; }
+    #chat-messages {
+      flex: 1;
+      overflow-y: auto;
+      border: 1px solid #334155;
+      border-radius: 8px;
+      padding: 0.75rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+      margin-bottom: 0.75rem;
+      background: #0f172a;
+    }
+
+    .message {
+      max-width: 80%;
+      padding: 0.5rem 0.75rem;
+      border-radius: 8px;
+      word-break: break-word;
+      font-size: 0.9rem;
+    }
+
+    .message.sent {
+      align-self: flex-end;
+      background-color: var(--accent-color);
+      color: #000;
+    }
+
+    .message.received {
+      align-self: flex-start;
+      background-color: #334155;
+      color: var(--text-color);
+    }
+
+    .chat-input-group { display: flex; gap: 0.5rem; }
+    .chat-input-group input {
+      flex: 1;
+      padding: 0.75rem;
+      border-radius: 8px;
+      border: 1px solid #334155;
+      background: #0f172a;
+      color: #fff;
+    }
+
+    .status {
+      font-size: 0.85rem;
+      color: var(--muted-text);
+      text-align: center;
+    }
+
+    .hidden { display: none !important; }
+  </style>
+</head>
+<body>
+
+  <div class="container">
+    <h1>WebRTC QR Chat</h1>
+    
+    <div id="status-text" class="status">Wähle eine Rolle, um zu starten.</div>
+
+    <!-- Modus Auswahl -->
+    <div id="role-selection" class="step-box">
+      <button class="btn" id="btn-init-host">1. Chat Erstellen (Host)</button>
+      <button class="btn" id="btn-init-joiner">2. Chat Beitreten (Partner)</button>
+    </div>
+
+    <!-- Anzeige QR Code -->
+    <div id="qr-display-section" class="step-box hidden">
+      <div id="qr-label" style="text-align: center; font-size: 0.9rem;">QR-Code wird generiert (Gathering ICE)...</div>
+      <div class="qr-container">
+        <div id="qrcode"></div>
+      </div>
+      <button class="btn" id="btn-go-to-scan">Weiter zum Scanner</button>
+    </div>
+
+    <!-- Scanner Ansicht -->
+    <div id="scanner-section" class="step-box hidden">
+      <p id="scanner-instruction" style="font-size: 0.85rem; text-align: center;">Scanne den QR-Code deines Gegenübers:</p>
+      <video id="webcam-preview" playsinline></video>
+      <canvas id="qr-canvas" class="hidden"></canvas>
+    </div>
+
+    <!-- Chat Bereich -->
+    <div id="chat-section">
+      <div id="chat-messages"></div>
+      <div class="chat-input-group">
+        <input type="text" id="chat-input" placeholder="Nachricht eingeben..." />
+        <button class="btn" id="btn-send" style="width: auto;">Senden</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // --- WEBRTC CONFIG & STATE ---
+    const config = { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] };
+    let pc = new RTCPeerConnection(config);
+    let dataChannel = null;
+    let isHost = false;
+    let videoStream = null;
+    let scanAnimationId = null;
+
+    // --- DOM ELEMNETE ---
+    const statusText = document.getElementById('status-text');
+    const roleSelection = document.getElementById('role-selection');
+    const qrDisplaySection = document.getElementById('qr-display-section');
+    const qrLabel = document.getElementById('qr-label');
+    const qrcodeDiv = document.getElementById('qrcode');
+    const btnGoToScan = document.getElementById('btn-go-to-scan');
+    const scannerSection = document.getElementById('scanner-section');
+    const webcamPreview = document.getElementById('webcam-preview');
+    const qrCanvas = document.getElementById('qr-canvas');
+    const chatSection = document.getElementById('chat-section');
+    const chatMessages = document.getElementById('chat-messages');
+    const chatInput = document.getElementById('chat-input');
+    const btnSend = document.getElementById('btn-send');
+
+    // --- UTILS: COMPRESSION ---
+    function compressSDP(sdpObj) {
+      const jsonStr = JSON.stringify(sdpObj);
+      const compressed = pako.deflate(jsonStr);
+      return btoa(String.fromCharCode.apply(null, compressed));
+    }
+
+    function decompressSDP(base64Str) {
+      const binaryStr = atob(base64Str);
+      const bytes = new Uint8Array(binaryStr.length);
+      for (let i = 0; i < binaryStr.length; i++) {
+        bytes[i] = binaryStr.charCodeAt(i);
+      }
+      const decompressed = pako.inflate(bytes, { to: 'string' });
+      return JSON.parse(decompressed);
+    }
+
+    function renderQRCode(text) {
+      qrcodeDiv.innerHTML = "";
+      new QRCode(qrcodeDiv, {
+        text: text,
+        width: 220,
+        height: 220,
+        correctLevel: QRCode.CorrectLevel.L
+      });
+    }
+
+    // --- WEBRTC SETUP ---
+    function setupDataChannelEvents() {
+      dataChannel.onopen = () => {
+        statusText.innerText = "Verbunden! Du kannst jetzt chatten.";
+        statusText.style.color = "var(--success-color)";
+        qrDisplaySection.classList.add('hidden');
+        scannerSection.classList.add('hidden');
+        chatSection.style.display = 'flex';
+        stopWebcam();
+      };
+
+      dataChannel.onmessage = (e) => {
+        addMessage(e.data, 'received');
+      };
+    }
+
+    // ICE-Gathering vervollständigen vor QR-Generierung
+    function waitForICEGatheringComplete() {
+      return new Promise((resolve) => {
+        if (pc.iceGatheringState === 'complete') {
+          resolve();
+        } else {
+          function checkState() {
+            if (pc.iceGatheringState === 'complete') {
+              pc.removeEventListener('icegatheringstatechange', checkState);
+              resolve();
+            }
+          }
+          pc.addEventListener('icegatheringstatechange', checkState);
+        }
+      });
+    }
+
+    // --- HOST LOGIK ---
+    document.getElementById('btn-init-host').onclick = async () => {
+      isHost = true;
+      roleSelection.classList.add('hidden');
+      qrDisplaySection.classList.remove('hidden');
+      statusText.innerText = "Erstelle Offer & sammle ICE Candidates...";
+
+      dataChannel = pc.createDataChannel("chat");
+      setupDataChannelEvents();
+
+      const offer = await pc.createOffer();
+      await pc.setLocalDescription(offer);
+
+      await waitForICEGatheringComplete();
+
+      const compressedSDP = compressSDP(pc.localDescription);
+      qrLabel.innerText = "Schritt 1: Lass deinen Partner diesen QR-Code scannen (Offer).";
+      renderQRCode(compressedSDP);
+      statusText.innerText = "Warte auf Scan...";
+      
+      btnGoToScan.innerText = "2. Answer-QR des Partners scannen";
+      btnGoToScan.onclick = () => {
+        qrDisplaySection.classList.add('hidden');
+        startScanner(handleScannedSignal);
+      };
+    };
+
+    // --- JOINER LOGIK ---
+    document.getElementById('btn-init-joiner').onclick = () => {
+      isHost = false;
+      roleSelection.classList.add('hidden');
+      statusText.innerText = "Bereit zum Scannen des Host-Offers.";
+
+      pc.ondatachannel = (e) => {
+        dataChannel = e.channel;
+        setupDataChannelEvents();
+      };
+
+      startScanner(handleScannedSignal);
+    };
+
+    // --- SIGNALING HANDLER ---
+    async function handleScannedSignal(dataStr) {
+      try {
+        const signal = decompressSDP(dataStr);
+
+        if (!isHost && signal.type === 'offer') {
+          stopWebcam();
+          scannerSection.classList.add('hidden');
+          qrDisplaySection.classList.remove('hidden');
+          statusText.innerText = "Offer empfangen. Erstelle Answer...";
+
+          await pc.setRemoteDescription(new RTCSessionDescription(signal));
+          const answer = await pc.createAnswer();
+          await pc.setLocalDescription(answer);
+
+          await waitForICEGatheringComplete();
+
+          const compressedAnswer = compressSDP(pc.localDescription);
+          qrLabel.innerText = "Schritt 2: Zeige diesen QR-Code dem Host (Answer).";
+          renderQRCode(compressedAnswer);
+          btnGoToScan.classList.add('hidden');
+          statusText.innerText = "Warte auf Verbindung...";
+
+        } else if (isHost && signal.type === 'answer') {
+          stopWebcam();
+          scannerSection.classList.add('hidden');
+          statusText.innerText = "Answer empfangen. Verbinde...";
+          await pc.setRemoteDescription(new RTCSessionDescription(signal));
+        }
+      } catch (err) {
+        console.error("Ungültiger QR-Code Signal Data", err);
+        alert("Ungültiger QR-Code. Bitte erneut versuchen.");
+      }
+    }
+
+    // --- WEBCAM & QR SCANNER ---
+    async function startScanner(onScanSuccess) {
+      scannerSection.classList.remove('hidden');
+      try {
+        videoStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
+        webcamPreview.srcObject = videoStream;
+        webcamPreview.setAttribute("playsinline", true);
+        webcamPreview.play();
+
+        const ctx = qrCanvas.getContext("2d");
+
+        function tick() {
+          if (webcamPreview.readyState === webcamPreview.HAVE_ENOUGH_DATA) {
+            qrCanvas.height = webcamPreview.videoHeight;
+            qrCanvas.width = webcamPreview.videoWidth;
+            ctx.drawImage(webcamPreview, 0, 0, qrCanvas.width, qrCanvas.height);
+            
+            const imageData = ctx.getImageData(0, 0, qrCanvas.width, qrCanvas.height);
+            const code = jsQR(imageData.data, imageData.width, imageData.height, {
+              inversionAttempts: "dontInvert",
+            });
+
+            if (code) {
+              onScanSuccess(code.data);
+              return; // Stop Scan Loop
+            }
+          }
+          scanAnimationId = requestAnimationFrame(tick);
+        }
+        scanAnimationId = requestAnimationFrame(tick);
+
+      } catch (err) {
+        console.error("Kamera-Zugriff fehlgeschlagen:", err);
+        statusText.innerText = "Kamera-Zugriff verweigert oder nicht verfügbar.";
+      }
+    }
+
+    function stopWebcam() {
+      if (scanAnimationId) cancelAnimationFrame(scanAnimationId);
+      if (videoStream) {
+        videoStream.getTracks().forEach(track => track.stop());
+        videoStream = null;
+      }
+    }
+
+    // --- CHAT LOGIK ---
+    function sendMessage() {
+      const msg = chatInput.value.trim();
+      if (msg && dataChannel && dataChannel.readyState === 'open') {
+        dataChannel.send(msg);
+        addMessage(msg, 'sent');
+        chatInput.value = '';
+      }
+    }
+
+    function addMessage(text, type) {
+      const msgDiv = document.createElement('div');
+      msgDiv.classList.add('message', type);
+      msgDiv.innerText = text;
+      chatMessages.appendChild(msgDiv);
+      chatMessages.scrollTop = chatMessages.scrollHeight;
+    }
+
+    btnSend.onclick = sendMessage;
+    chatInput.onkeypress = (e) => { if (e.key === 'Enter') sendMessage(); };
+  </script>
+</body>
+</html>
