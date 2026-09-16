@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="de">
+<html lang="en">
 <head>
   <meta charset="UTF-8">
   <title>Nordic UART Console (Web Bluetooth)</title>
@@ -12,6 +12,7 @@
     }
     textarea {
       width: 100%;
+      box-sizing: border-box;
       height: 300px;
       background: #000;
       color: #0f0;
@@ -21,6 +22,20 @@
     }
     button {
       margin-bottom: 10px;
+    }
+    a {
+      color: #fff;
+    }
+    #cmdinput {
+      width: 100%;
+      box-sizing: border-box;
+      margin-top: 6px;
+      padding: 10px;
+      font-family: monospace;
+      font-size: 14px;
+      background: #000;
+      color: #0f0;
+      border: 1px solid #0f0;
     }
   </style>
 </head>
@@ -34,6 +49,7 @@ all devices <input id="alldevices" type="checkbox" />
      '6e400001-b5a3-f393-e0a9-e50e24dcca9e';
    return false;">(NUS)</a>
 <textarea id="console" disabled></textarea>
+<input id="cmdinput" type="text" placeholder="Enter command, press ENTER to send" disabled />
 <div id="errlog"/>
 
 <script type="module">
@@ -87,7 +103,7 @@ document.getElementById("connect").addEventListener("click", async () => {
 		  filters: [
 			{ namePrefix: dn }
 		  ],
-		  optionalServices: [NUS_SERVICE] // 👈 wichtig!
+		  optionalServices: [NUS_SERVICE] // 👈 important!
 		  
 		  
 		}*/
@@ -117,6 +133,10 @@ document.getElementById("connect").addEventListener("click", async () => {
     textarea.value += "[connected]\n";
     lastLength = textarea.value.length;
 
+    const cmdinput = document.getElementById("cmdinput");
+    cmdinput.disabled = false;
+    cmdinput.focus();
+
   } catch (err) {
     console.error(err);
 	document.getElementById("errlog").innerHTML = "BLE error: " + err;
@@ -138,6 +158,24 @@ textarea.addEventListener("input", async () => {
     } catch (e) {
       console.error("Write error", e);
     }
+  }
+});
+
+/* ⌨️ CMD INPUT — SEND ON ENTER */
+document.getElementById("cmdinput").addEventListener("keydown", async (e) => {
+  if (e.key !== "Enter" || !rxChar) return;
+  e.preventDefault();
+  const input = e.target;
+  const cmd = input.value;
+  if (cmd.length === 0) return;
+  try {
+    await rxChar.writeValue(encoder.encode(cmd + "\n"));
+    textarea.value += "> " + cmd + "\n";
+    textarea.selectionStart = textarea.selectionEnd = textarea.value.length;
+    lastLength = textarea.value.length;
+    input.value = "";
+  } catch (err) {
+    console.error("Write error", err);
   }
 });
 </script>
