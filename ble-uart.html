@@ -29,7 +29,10 @@ Other tools: <a href="https://navideck.github.io/universal-ble/">https://navidec
 <button id="connect">Connect BLE</button><br/><br/>
 all devices <input id="alldevices" type="checkbox" />
 <input id="devname" placeholder="Device name" />
-<input id="services" placeholder="Services" />
+ optionalServices: <input id="services" placeholder="Services" /> <a href="#"
+   onclick="document.getElementById('services').value =
+     '6e400001-b5a3-f393-e0a9-e50e24dcca9e';
+   return false;">(NUS)</a>
 <textarea id="console" disabled></textarea>
 <div id="errlog"/>
 
@@ -62,7 +65,8 @@ document.getElementById("connect").addEventListener("click", async () => {
 	  
 	  let services = document.getElementById('services').value;
 	  if (services) {
-		filters.push({optionalServices: [ services ] });
+		//filters.push({optionalServices: [ services ] });
+		options.optionalServices = [ services ];
 	  }
 	  if (Object.keys(filters).length == 0) {
 	     alldevices = true;
@@ -70,12 +74,14 @@ document.getElementById("connect").addEventListener("click", async () => {
 	  
 	  if (alldevices) {
 	     options.acceptAllDevices = true;
+		 
 	  } else {
 	    options.filters = filters;
 	  }
 	  
+	  console.log(JSON.stringify(options));
 	  //options.optionalServices = [NUS_SERVICE];
-    device = await navigator.bluetooth.requestDevice(
+    const device = await navigator.bluetooth.requestDevice(
 		options
 		/*{
 		  filters: [
@@ -138,6 +144,3 @@ textarea.addEventListener("input", async () => {
 
 </body>
 </html>
-
-
-
